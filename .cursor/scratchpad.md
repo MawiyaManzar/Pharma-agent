@@ -1,0 +1,350 @@
+# Pharma Agentic AI - Drug Repurposing Intelligence Platform
+
+## Background and Motivation
+
+A global generic pharma company is stuck in the classic generics trap: crowded markets, shrinking margins, and brutal price competition. To break out, they want to move into value-added innovation, but not by discovering brand-new drugs (too slow, too expensive). Instead, they want to repurpose already-approved molecules for:
+- New indications
+- New dosage forms
+- New patient segments
+
+**The Core Pain**: Finding fresh repurposing opportunities is a research slog. Analysts must:
+- Sift through scientific papers
+- Comb regulatory databases
+- Check clinical trial pipelines
+- Scan patent landscapes
+- Assess market dynamics
+- Refer to internal documents
+
+A single molecule evaluation can take 2–3 months, mainly because information is scattered across dozens of systems, and the research cycle repeats many times. This limits the company's ability to explore new ideas quickly—so the innovation funnel stays thin.
+
+**The Vision**: An Agentic AI "Research Copilot" that behaves like a team of specialized analysts. At the center is a Master Agent that breaks the user's query into smaller tasks and routes them to Worker Agents, each with a focused skill set.
+
+**Demo Requirement**: A 4-minute end-to-end flow showing one complete journey from molecule input to downloadable PDF report.
+
+## Key Challenges and Analysis
+
+### Technical Challenges
+1. **Multi-Agent Orchestration**: Need to coordinate multiple specialized agents with clear roles and responsibilities
+2. **Data Source Integration**: Multiple heterogeneous data sources (IQVIA, EXIM, Patents, Clinical Trials, Internal Docs, Web)
+3. **State Management**: Maintaining context across agent interactions and workflow steps
+4. **Reasoning Chain**: Making the agent's decision-making process explicit and traceable
+5. **Report Generation**: Synthesizing multi-source data into coherent, professional reports (PDF/Excel)
+
+### Framework Selection
+- **CrewAI**: Good for role-based agent collaboration, simpler orchestration
+- **LangGraph**: More flexible for complex state machines and conditional workflows
+- **Decision**: Need to evaluate both, but LangGraph may be better for explicit workflow visualization required in demo
+
+### Data Source Strategy
+- All data sources will be mocked/fixtured for demo purposes
+- Need to create realistic mock responses that demonstrate the system's capabilities
+- Mock data should cover various scenarios (existing trials, patent conflicts, market opportunities, etc.)
+
+### User Experience
+- Need a simple UI for molecule input
+- Real-time progress indication as agents work
+- Clear visualization of findings
+- Downloadable report (PDF/Excel)
+
+## High-level Task Breakdown
+
+### Phase 1: Foundation & Architecture Setup
+**Task 1.1: Project Structure & Dependencies**
+- Success Criteria:
+  - Project directory structure created
+  - Dependencies file (requirements.txt or package.json) with all necessary libraries
+  - Framework chosen (CrewAI or LangGraph) and installed
+  - Basic project can be run without errors
+- Estimated Complexity: Low
+
+**Task 1.2: Architecture Documentation**
+- Success Criteria:
+  - Architecture diagram created (text or visual)
+  - Agent roles and responsibilities documented
+  - Data flow diagram showing how agents interact
+  - Tool integration points identified
+- Estimated Complexity: Low
+
+### Phase 2: Data Source Mocks & Tools
+**Task 2.1: IQVIA Insights Agent Tool**
+- Success Criteria:
+  - Mock API/tool that returns market size, competition, growth data
+  - Tool integrated with agent framework
+  - Returns structured data for a given molecule
+  - Test cases pass
+- Estimated Complexity: Medium
+
+**Task 2.2: EXIM Trade Agent Tool**
+- Success Criteria:
+  - Mock API/tool for import/export and formulation movement data
+  - Tool integrated with agent framework
+  - Returns structured trade data
+  - Test cases pass
+- Estimated Complexity: Medium
+
+**Task 2.3: Patent Landscape Agent Tool**
+- Success Criteria:
+  - Mock USPTO-like API/tool for patent search
+  - Returns patent data and FTO (Freedom to Operate) analysis
+  - Tool integrated with agent framework
+  - Test cases pass
+- Estimated Complexity: Medium
+
+**Task 2.4: Clinical Trials Agent Tool**
+- Success Criteria:
+  - Mock ClinicalTrials.gov/WHO ICTRP API/tool
+  - Returns ongoing and completed trial data
+  - Tool integrated with agent framework
+  - Test cases pass
+- Estimated Complexity: Medium
+
+**Task 2.5: Internal Insights Agent Tool**
+- Success Criteria:
+  - Mock internal document repository access
+  - Returns strategy decks, internal documents relevant to molecule
+  - Tool integrated with agent framework
+  - Test cases pass
+- Estimated Complexity: Medium
+
+**Task 2.6: Web Intelligence Agent Tool**
+- Success Criteria:
+  - Mock web search tool for guidelines, scientific publications, news
+  - Returns relevant scientific and market intelligence
+  - Tool integrated with agent framework
+  - Test cases pass
+- Estimated Complexity: Medium
+
+### Phase 3: Worker Agent Implementation
+**Task 3.1: IQVIA Insights Agent**
+- Success Criteria:
+  - Agent can receive molecule query
+  - Calls IQVIA tool appropriately
+  - Processes and structures market data
+  - Returns formatted insights
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+**Task 3.2: EXIM Trade Agent**
+- Success Criteria:
+  - Agent can receive molecule query
+  - Calls EXIM tool appropriately
+  - Processes trade data
+  - Returns formatted insights
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+**Task 3.3: Patent Landscape Agent**
+- Success Criteria:
+  - Agent can receive molecule query
+  - Calls Patent tool appropriately
+  - Analyzes FTO and patent landscape
+  - Returns formatted insights
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+**Task 3.4: Clinical Trials Agent**
+- Success Criteria:
+  - Agent can receive molecule query
+  - Calls Clinical Trials tool appropriately
+  - Identifies ongoing/completed trials
+  - Returns formatted insights
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+**Task 3.5: Internal Insights Agent**
+- Success Criteria:
+  - Agent can receive molecule query
+  - Calls Internal Docs tool appropriately
+  - Extracts relevant internal intelligence
+  - Returns formatted insights
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+**Task 3.6: Web Intelligence Agent**
+- Success Criteria:
+  - Agent can receive molecule query
+  - Calls Web Intelligence tool appropriately
+  - Gathers scientific and market intelligence
+  - Returns formatted insights
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+### Phase 4: Master Agent & Orchestration
+**Task 4.1: Master Agent Implementation**
+- Success Criteria:
+  - Master Agent can receive user query (molecule name)
+  - Breaks down query into sub-tasks
+  - Routes tasks to appropriate Worker Agents
+  - Manages agent execution workflow
+  - Collects results from all agents
+  - Unit tests pass
+- Estimated Complexity: High
+
+**Task 4.2: Workflow State Management**
+- Success Criteria:
+  - State machine properly tracks agent execution
+  - Handles errors and retries gracefully
+  - Maintains context across agent interactions
+  - Workflow visualization/logging works
+  - Integration tests pass
+- Estimated Complexity: High
+
+**Task 4.3: Result Synthesis Logic**
+- Success Criteria:
+  - Master Agent merges all Worker Agent results
+  - Creates coherent narrative with:
+    - Unmet clinical needs
+    - Research momentum (trials)
+    - New indication opportunities
+    - Patent/FTO analysis
+    - Market potential
+  - Formats data with tables and structured insights
+  - Integration tests pass
+- Estimated Complexity: High
+
+### Phase 5: Report Generation
+**Task 5.1: Report Generator Agent**
+- Success Criteria:
+  - Agent receives synthesized data from Master Agent
+  - Formats data into professional structure
+  - Generates PDF report with:
+    - Executive summary
+    - Market analysis
+    - Clinical trial landscape
+    - Patent analysis
+    - Opportunity assessment
+    - Citations and references
+  - Generates Excel alternative with structured data
+  - Unit tests pass
+- Estimated Complexity: Medium
+
+**Task 5.2: Report Template Design**
+- Success Criteria:
+  - Professional PDF template created
+  - Includes all required sections
+  - Charts/tables properly formatted
+  - Citations properly formatted
+  - Excel template with appropriate sheets
+- Estimated Complexity: Low
+
+### Phase 6: User Interface
+**Task 6.1: Basic UI Implementation**
+- Success Criteria:
+  - Simple web UI or CLI for molecule input
+  - Real-time progress indication
+  - Display of agent execution status
+  - Results preview
+  - Download buttons for PDF/Excel
+  - Manual testing passes
+- Estimated Complexity: Medium
+
+**Task 6.2: UI Polish & UX**
+- Success Criteria:
+  - Clean, professional interface
+  - Clear error messages
+  - Loading states
+  - Results visualization (tables, charts if applicable)
+  - Responsive design (if web UI)
+  - User acceptance testing passes
+- Estimated Complexity: Low-Medium
+
+### Phase 7: Integration & End-to-End Testing
+**Task 7.1: End-to-End Integration**
+- Success Criteria:
+  - Complete flow from molecule input to PDF download works
+  - All agents execute in correct sequence
+  - Data flows correctly between components
+  - No critical errors in full flow
+  - Integration tests pass
+- Estimated Complexity: High
+
+**Task 7.2: Demo Preparation**
+- Success Criteria:
+  - Demo script prepared
+  - Test molecule selected with rich mock data
+  - 4-minute demo flow validated
+  - All features work smoothly
+  - Demo recording or live demo ready
+- Estimated Complexity: Low
+
+### Phase 8: Documentation & Submission
+**Task 8.1: Architecture Documentation**
+- Success Criteria:
+  - Architecture document describing system design
+  - Workflow diagrams
+  - Agent roles and interactions documented
+  - Tool integration points explained
+  - README with setup instructions
+- Estimated Complexity: Low
+
+**Task 8.2: Code Documentation**
+- Success Criteria:
+  - Code comments for key functions
+  - Docstrings for agents and tools
+  - Usage examples
+  - API documentation if applicable
+- Estimated Complexity: Low
+
+## Project Status Board
+
+### To Do
+- [ ] Task 1.1: Project Structure & Dependencies
+- [ ] Task 1.2: Architecture Documentation
+- [ ] Task 2.1: IQVIA Insights Agent Tool
+- [ ] Task 2.2: EXIM Trade Agent Tool
+- [ ] Task 2.3: Patent Landscape Agent Tool
+- [ ] Task 2.4: Clinical Trials Agent Tool
+- [ ] Task 2.5: Internal Insights Agent Tool
+- [ ] Task 2.6: Web Intelligence Agent Tool
+- [ ] Task 3.1: IQVIA Insights Agent
+- [ ] Task 3.2: EXIM Trade Agent
+- [ ] Task 3.3: Patent Landscape Agent
+- [ ] Task 3.4: Clinical Trials Agent
+- [ ] Task 3.5: Internal Insights Agent
+- [ ] Task 3.6: Web Intelligence Agent
+- [ ] Task 4.1: Master Agent Implementation
+- [ ] Task 4.2: Workflow State Management
+- [ ] Task 4.3: Result Synthesis Logic
+- [ ] Task 5.1: Report Generator Agent
+- [ ] Task 5.2: Report Template Design
+- [ ] Task 6.1: Basic UI Implementation
+- [ ] Task 6.2: UI Polish & UX
+- [ ] Task 7.1: End-to-End Integration
+- [ ] Task 7.2: Demo Preparation
+- [ ] Task 8.1: Architecture Documentation
+- [ ] Task 8.2: Code Documentation
+
+### In Progress
+- None
+
+### Completed
+- None
+
+### Blocked
+- None
+
+## Current Status / Progress Tracking
+
+**Current Phase**: Planning Complete - Ready for Execution
+
+**Last Updated**: Initial planning phase
+
+**Next Steps**: 
+1. Executor should start with Task 1.1 (Project Structure & Dependencies)
+2. Framework decision needed: CrewAI vs LangGraph (recommendation: LangGraph for better workflow visualization)
+3. Technology stack decisions needed (Python recommended for AI/ML ecosystem)
+
+## Executor's Feedback or Assistance Requests
+
+_This section will be updated by the Executor as work progresses._
+
+## Lessons
+
+_This section will be updated with learnings, fixes, and reusable information as the project progresses._
+
+### User Specified Lessons
+- Include info useful for debugging in the program output
+- Read the file before you try to edit it
+- If there are vulnerabilities that appear in the terminal, run npm audit before proceeding
+- Always ask before using the -force git command
+
