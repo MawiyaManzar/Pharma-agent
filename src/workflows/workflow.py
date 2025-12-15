@@ -2,7 +2,7 @@
 LangGraph workflow for orchestrating multi-agent drug repurposing analysis.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -96,6 +96,10 @@ class DrugRepurposingWorkflow:
     def _plan_node(self, state: WorkflowState) -> WorkflowState:
         """Plan the analysis - determine which agents to run."""
         state["current_step"] = "planning"
+        # Initialize or update execution log
+        messages = state.get("messages") or []
+        messages.append("Planning workflow and determining which agents to run...")
+        state["messages"] = messages
         state["agents_to_run"] = self.master_agent.determine_agents_to_run(
             state["user_query"],
             state["molecule"]
@@ -106,6 +110,9 @@ class DrugRepurposingWorkflow:
     
     def _execute_iqvia_node(self, state: WorkflowState) -> WorkflowState:
         """Execute IQVIA Insights Agent."""
+        state["current_step"] = "execute_iqvia"
+        messages = state.get("messages") or []
+        messages.append("Running IQVIA Insights Agent...")
         try:
             result = self.master_agent.execute_agent("iqvia", state["molecule"], state.get("context"))
             state["iqvia_result"] = result
@@ -113,10 +120,17 @@ class DrugRepurposingWorkflow:
         except Exception as e:
             state["iqvia_result"] = {"error": str(e), "status": "failed"}
             state["agents_failed"].append("iqvia")
+            messages.append(f"IQVIA Insights Agent failed: {str(e)}")
+        else:
+            messages.append("IQVIA Insights Agent completed successfully.")
+        state["messages"] = messages
         return state
     
     def _execute_exim_node(self, state: WorkflowState) -> WorkflowState:
         """Execute EXIM Trade Agent."""
+        state["current_step"] = "execute_exim"
+        messages = state.get("messages") or []
+        messages.append("Running EXIM Trade Agent...")
         try:
             result = self.master_agent.execute_agent("exim", state["molecule"], state.get("context"))
             state["exim_result"] = result
@@ -124,10 +138,17 @@ class DrugRepurposingWorkflow:
         except Exception as e:
             state["exim_result"] = {"error": str(e), "status": "failed"}
             state["agents_failed"].append("exim")
+            messages.append(f"EXIM Trade Agent failed: {str(e)}")
+        else:
+            messages.append("EXIM Trade Agent completed successfully.")
+        state["messages"] = messages
         return state
     
     def _execute_patent_node(self, state: WorkflowState) -> WorkflowState:
         """Execute Patent Landscape Agent."""
+        state["current_step"] = "execute_patent"
+        messages = state.get("messages") or []
+        messages.append("Running Patent Landscape Agent...")
         try:
             result = self.master_agent.execute_agent("patent", state["molecule"], state.get("context"))
             state["patent_result"] = result
@@ -135,10 +156,17 @@ class DrugRepurposingWorkflow:
         except Exception as e:
             state["patent_result"] = {"error": str(e), "status": "failed"}
             state["agents_failed"].append("patent")
+            messages.append(f"Patent Landscape Agent failed: {str(e)}")
+        else:
+            messages.append("Patent Landscape Agent completed successfully.")
+        state["messages"] = messages
         return state
     
     def _execute_clinical_trials_node(self, state: WorkflowState) -> WorkflowState:
         """Execute Clinical Trials Agent."""
+        state["current_step"] = "execute_clinical_trials"
+        messages = state.get("messages") or []
+        messages.append("Running Clinical Trials Agent...")
         try:
             result = self.master_agent.execute_agent("clinical_trials", state["molecule"], state.get("context"))
             state["clinical_trials_result"] = result
@@ -146,10 +174,17 @@ class DrugRepurposingWorkflow:
         except Exception as e:
             state["clinical_trials_result"] = {"error": str(e), "status": "failed"}
             state["agents_failed"].append("clinical_trials")
+            messages.append(f"Clinical Trials Agent failed: {str(e)}")
+        else:
+            messages.append("Clinical Trials Agent completed successfully.")
+        state["messages"] = messages
         return state
     
     def _execute_internal_node(self, state: WorkflowState) -> WorkflowState:
         """Execute Internal Insights Agent."""
+        state["current_step"] = "execute_internal"
+        messages = state.get("messages") or []
+        messages.append("Running Internal Insights Agent...")
         try:
             result = self.master_agent.execute_agent("internal", state["molecule"], state.get("context"))
             state["internal_result"] = result
@@ -157,10 +192,17 @@ class DrugRepurposingWorkflow:
         except Exception as e:
             state["internal_result"] = {"error": str(e), "status": "failed"}
             state["agents_failed"].append("internal")
+            messages.append(f"Internal Insights Agent failed: {str(e)}")
+        else:
+            messages.append("Internal Insights Agent completed successfully.")
+        state["messages"] = messages
         return state
     
     def _execute_web_node(self, state: WorkflowState) -> WorkflowState:
         """Execute Web Intelligence Agent."""
+        state["current_step"] = "execute_web"
+        messages = state.get("messages") or []
+        messages.append("Running Web Intelligence Agent...")
         try:
             result = self.master_agent.execute_agent("web", state["molecule"], state.get("context"))
             state["web_result"] = result
@@ -168,11 +210,17 @@ class DrugRepurposingWorkflow:
         except Exception as e:
             state["web_result"] = {"error": str(e), "status": "failed"}
             state["agents_failed"].append("web")
+            messages.append(f"Web Intelligence Agent failed: {str(e)}")
+        else:
+            messages.append("Web Intelligence Agent completed successfully.")
+        state["messages"] = messages
         return state
     
     def _synthesize_node(self, state: WorkflowState) -> WorkflowState:
         """Synthesize all agent results."""
         state["current_step"] = "synthesizing"
+        messages = state.get("messages") or []
+        messages.append("Synthesizing results from all agents...")
         
         # Collect all results
         results = {
@@ -197,6 +245,8 @@ class DrugRepurposingWorkflow:
         state["synthesized_result"] = synthesized
         state["report_data"] = self._prepare_report_data(state, results)
         state["current_step"] = "completed"
+        messages.append("Workflow completed. Synthesis and report data prepared.")
+        state["messages"] = messages
         
         return state
     
@@ -212,7 +262,13 @@ class DrugRepurposingWorkflow:
             "summary": state.get("synthesized_result", {}).get("summary", {}),
         }
     
-    def run(self, molecule: str, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def run(
+        self,
+        molecule: str,
+        query: str,
+        context: Optional[Dict[str, Any]] = None,
+        on_state_update: Optional[Callable[[WorkflowState], None]] = None,
+    ) -> Dict[str, Any]:
         """
         Run the complete workflow for a molecule analysis.
         
@@ -273,9 +329,17 @@ class DrugRepurposingWorkflow:
             "messages": [],
         }
         
-        # Run workflow
+        # Run workflow with streaming so callers can observe intermediate state.
+        # NOTE: graph.stream() yields dictionaries of {node_name: state}.
         config = {"configurable": {"thread_id": "1"}}
-        final_state = self.graph.invoke(initial_state, config)
+        final_state: Optional[WorkflowState] = None
         
-        return final_state
+        for update in self.graph.stream(initial_state, config):
+            # Each update is a dict: { "node_name": WorkflowState }
+            for _node_name, state in update.items():
+                final_state = state
+                if on_state_update is not None:
+                    on_state_update(state)
+        
+        return final_state or initial_state
 

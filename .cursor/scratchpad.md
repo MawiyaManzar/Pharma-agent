@@ -46,6 +46,7 @@ A single molecule evaluation can take 2–3 months, mainly because information i
 3. **State Management**: Maintaining context across agent interactions and workflow steps
 4. **Reasoning Chain**: Making the agent's decision-making process explicit and traceable
 5. **Report Generation**: Synthesizing multi-source data into coherent, professional reports (PDF/Excel)
+6. **End-to-End Latency**: Current single-query latency is ~230 seconds due to strictly sequential multi-agent execution and synchronous report generation.
 
 
 ### Data Source Strategy
@@ -339,6 +340,47 @@ A single molecule evaluation can take 2–3 months, mainly because information i
 - [x] Task 8.1: Architecture Documentation
 - [x] Task 8.2: Code Documentation
 
+### Phase 9: Performance Optimization & Latency Reduction
+**Task 9.1: Baseline Profiling & Timing Instrumentation**
+- Success Criteria:
+  - Add lightweight timing logs around key stages: FastAPI `/chats` handler, `DrugRepurposingWorkflow.run`, each LangGraph node (`plan`, each `execute_*`, `synthesize`), and report generation.
+  - Capture per-step timing for at least 3 representative molecules (e.g., Metformin, Aspirin) and store results in a simple CSV / log for comparison.
+  - Confirm that the current median end-to-end latency is approximately 230 seconds and identify which stages dominate (LLM agent calls vs. report generation vs. overhead).
+- Estimated Complexity: Low-Medium
+
+**Task 9.2: Parallelize Independent Worker Agents**
+- Success Criteria:
+  - Redesign the LangGraph in `DrugRepurposingWorkflow` so that the 6 worker agents (IQVIA, EXIM, Patent, Clinical Trials, Internal, Web) execute in parallel or batched concurrency rather than strictly sequentially.
+  - Preserve existing behavior and error tracking (`agents_completed`, `agents_failed`, and `messages`) while allowing concurrent execution.
+  - Demonstrate, via new timing logs, at least a 2–3× reduction in the “agent execution” portion of latency for typical queries, without degrading correctness of results.
+- Estimated Complexity: High
+
+**Task 9.3: Report Generation Optimization / Offloading**
+- Success Criteria:
+  - Measure and document how much time PDF + Excel generation contributes to total latency.
+  - Implement either (a) a background task pattern (FastAPI `BackgroundTasks` or queue) so `/chats` can return synthesized results immediately and reports are generated asynchronously, or (b) a configurable toggle to skip report generation for pure “chat-only” queries.
+  - Confirm that, for interactive chat usage, user-visible latency is dominated by agent execution and not by report generation, with clear status messaging in the UI when reports are still being prepared.
+- Estimated Complexity: Medium
+
+**Task 9.4: Caching & Reuse of Results**
+- Success Criteria:
+  - Introduce a simple caching layer (in-memory or file-based) keyed by at least `(molecule, normalized_query)` for the workflow output and generated report paths.
+  - Ensure that repeated queries for the same molecule + question within a short window (e.g., current demo session) return nearly instantly by reusing cached agent outputs and reports.
+  - Include cache logging/metrics so we can see hit/miss rates during tests.
+- Estimated Complexity: Medium
+
+**Task 9.5: LLM Call Optimization**
+- Success Criteria:
+  - Review `MasterAgent` and worker agents to count and document how many LLM calls occur per query and with which model(s).
+  - Reduce unnecessary LLM invocations (e.g., combine prompts where safe, avoid redundant summarization) and, where appropriate, use a faster/cheaper model for intermediate reasoning while preserving final output quality.
+  - Show, via profiling logs, a measurable reduction in total LLM time per request, while maintaining existing test suite pass rates and subjective output quality in at least 3 manual test runs.
+- Estimated Complexity: Medium
+- [ ] Task 9.1: Baseline Profiling & Timing Instrumentation
+- [ ] Task 9.2: Parallelize Independent Worker Agents
+- [ ] Task 9.3: Report Generation Optimization / Offloading
+- [ ] Task 9.4: Caching & Reuse of Results
+- [ ] Task 9.5: LLM Call Optimization
+
 ### In Progress
 - None
 
@@ -373,7 +415,7 @@ A single molecule evaluation can take 2–3 months, mainly because information i
 
 ## Current Status / Progress Tracking
 
-**Current Phase**: Phase 8 - Documentation ✅ COMPLETE | 🎉 PROJECT COMPLETE 🎉
+**Current Phase**: Phase 9 - Performance Optimization & Latency Reduction (NEW)
 
 **Last Updated**: Phase 8 completion - All documentation complete, project ready for submission
 
@@ -400,10 +442,16 @@ A single molecule evaluation can take 2–3 months, mainly because information i
 - ✅ **UI Integration**: FastAPI backend connected to LangGraph workflow, Streamlit UI enhanced with progress indicators and report downloads
 
 **Next Steps** (in priority order): 
-1. **Phase 7: Integration & Testing** - End-to-end integration and demo preparation
-   - Task 7.1: End-to-End Integration (test complete flow)
-   - Task 7.2: Demo Preparation (demo script, test molecule selection)
-2. **Phase 8: Documentation** - Final documentation and code comments
+1. **Task 9.1: Baseline Profiling & Timing Instrumentation**
+   - Add timing logs and capture baseline latency breakdown for 2–3 molecules.
+2. **Task 9.2: Parallelize Independent Worker Agents**
+   - Redesign workflow graph for concurrent agent execution and validate behavior.
+3. **Task 9.3: Report Generation Optimization / Offloading**
+   - Decouple report generation from critical response path where appropriate.
+4. **Task 9.4: Caching & Reuse of Results**
+   - Introduce simple caching for repeated queries in a session.
+5. **Task 9.5: LLM Call Optimization**
+   - Reduce redundant calls and tune model usage for speed vs. quality.
 
 ## Executor's Feedback or Assistance Requests
 

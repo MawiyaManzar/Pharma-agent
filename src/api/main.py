@@ -10,8 +10,9 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import os
 from dotenv import load_dotenv
-import asyncio
 from pathlib import Path
+from uuid import uuid4
+import asyncio
 
 import sys
 import traceback
@@ -28,6 +29,10 @@ except ImportError as e:
     raise
 
 load_dotenv()
+
+# In-memory store for background workflow jobs
+WORKFLOW_JOBS: Dict[str, Dict[str, Any]] = {}
+
 
 app = FastAPI(
     title="Pharma Agentic AI API",
@@ -60,6 +65,21 @@ class ChatResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
     report_paths: Optional[Dict[str, str]] = None
     workflow_state: Optional[Dict[str, Any]] = None
+
+
+class ChatJobStartResponse(BaseModel):
+    """Response model when starting a background job"""
+    job_id: str
+    status: str
+
+
+class ChatJobStatusResponse(BaseModel):
+    """Response model for job status polling"""
+    job_id: str
+    status: str
+    error: Optional[str] = None
+    workflow_state: Optional[Dict[str, Any]] = None
+    result: Optional[ChatResponse] = None
 
 
 @app.get("/")
@@ -165,6 +185,7 @@ async def chats(request: ChatRequest):
                 "agents_completed": final_state.get("agents_completed", []),
                 "agents_failed": final_state.get("agents_failed", []),
                 "current_step": final_state.get("current_step", "unknown"),
+                "messages": final_state.get("messages", []),
             }
         )
     
@@ -194,6 +215,145 @@ async def chats(request: ChatRequest):
             status_code=500,
             detail=error_detail
         )
+
+
+def _run_workflow_job(job_id: str, request_data: Dict[str, Any]) -> None:
+    """
+    Background task to run the workflow and store progress/results in WORKFLOW_JOBS.
+    This allows the frontend to poll for real-time status.
+    """
+    try:
+        WORKFLOW_JOBS[job_id]["status"] = "running"
+        WORKFLOW_JOBS[job_id]["error"] = None
+
+        message = request_data.get("message") or ""
+        molecule = request_data.get("molecule") or (message.split()[0] if message else "Unknown")
+
+        # Initialize workflow
+        workflow = DrugRepurposingWorkflow()
+
+        # Prepare context
+        context: Dict[str, Any] = {}
+        if request_data.get("molecule"):
+            context["molecule"] = request_data["molecule"]
+
+        # Callback to push intermediate state into WORKFLOW_JOBS for live updates
+        def on_state_update(state: Dict[str, Any]) -> None:
+            WORKFLOW_JOBS[job_id]["workflow_state"] = {
+                "agents_completed": state.get("agents_completed", []),
+                "agents_failed": state.get("agents_failed", []),
+                "current_step": state.get("current_step", "unknown"),
+                "messages": state.get("messages", []),
+            }
+
+        # Run workflow (synchronously in this background task) with streaming updates
+        final_state = workflow.run(
+            molecule=molecule,
+            query=message,
+            context=context,
+            on_state_update=on_state_update,
+        )
+
+        # Extract synthesized result
+        synthesized_result = final_state.get("synthesized_result")
+        report_data = final_state.get("report_data")
+
+        if not synthesized_result:
+            WORKFLOW_JOBS[job_id]["status"] = "failed"
+            WORKFLOW_JOBS[job_id]["error"] = "Workflow did not produce synthesized results"
+            WORKFLOW_JOBS[job_id]["workflow_state"] = final_state
+            return
+
+        # Generate reports
+        report_generator = ReportGenerator()
+        report_paths = None
+
+        if report_data:
+            try:
+                reports = report_generator.generate_reports(report_data)
+                report_paths = {
+                    "pdf": reports["pdf"],
+                    "excel": reports["excel"],
+                    "base_filename": reports["base_filename"]
+                }
+            except Exception as e:
+                # Log error but don't fail the job
+                print(f"Report generation error (job {job_id}): {str(e)}")
+
+        # Prepare response-like payload
+        synthesis_text = synthesized_result.get("synthesis", "Analysis completed successfully.")
+
+        result_payload = ChatResponse(
+            response=synthesis_text,
+            status="completed",
+            session_id=request_data.get("session_id") or "default",
+            data={
+                "molecule": molecule,
+                "synthesis": synthesis_text,
+                "key_findings": synthesized_result.get("key_findings", []),
+                "recommendations": synthesized_result.get("recommendations", []),
+                "summary": synthesized_result.get("summary", {}),
+            },
+            report_paths=report_paths,
+            workflow_state={
+                "agents_completed": final_state.get("agents_completed", []),
+                "agents_failed": final_state.get("agents_failed", []),
+                "current_step": final_state.get("current_step", "unknown"),
+                "messages": final_state.get("messages", []),
+            }
+        )
+
+        WORKFLOW_JOBS[job_id]["status"] = "completed"
+        WORKFLOW_JOBS[job_id]["workflow_state"] = result_payload.workflow_state
+        WORKFLOW_JOBS[job_id]["result"] = result_payload
+
+    except Exception as e:
+        error_detail = f"Error in background job {job_id}: {str(e)}"
+        print(f"ERROR: {error_detail}", file=sys.stderr)
+        print(f"Traceback: {traceback.format_exc()}", file=sys.stderr)
+        WORKFLOW_JOBS[job_id]["status"] = "failed"
+        WORKFLOW_JOBS[job_id]["error"] = error_detail
+
+
+@app.post("/chats/start", response_model=ChatJobStartResponse)
+async def chats_start(request: ChatRequest, background_tasks: BackgroundTasks):
+    """
+    Start a chat workflow as a background job.
+
+    Returns immediately with a job_id that the frontend can use to poll status.
+    """
+    job_id = f"{request.session_id or 'session'}-{uuid4().hex[:8]}"
+    WORKFLOW_JOBS[job_id] = {
+        "status": "queued",
+        "error": None,
+        "workflow_state": None,
+        "result": None,
+    }
+
+    # Run workflow in background
+    background_tasks.add_task(_run_workflow_job, job_id, request.dict())
+
+    return ChatJobStartResponse(job_id=job_id, status="started")
+
+
+@app.get("/chats/status/{job_id}", response_model=ChatJobStatusResponse)
+async def chats_status(job_id: str):
+    """
+    Get the current status and (when ready) result for a background chat job.
+    """
+    job = WORKFLOW_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    result = job.get("result")
+    # Pydantic will handle conversion of ChatResponse to nested model
+    return ChatJobStatusResponse(
+        job_id=job_id,
+        status=job.get("status", "unknown"),
+        error=job.get("error"),
+        workflow_state=job.get("workflow_state"),
+        result=result,
+    )
 
 
 @app.get("/health")

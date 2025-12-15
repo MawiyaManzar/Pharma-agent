@@ -33,38 +33,46 @@ if "workflow_status" not in st.session_state:
     st.session_state.workflow_status = None
 
 
-def call_api(message: str, molecule: Optional[str] = None) -> dict:
+def start_job(message: str, molecule: Optional[str] = None) -> Optional[str]:
     """
-    Call the FastAPI /chats endpoint
+    Start a background workflow job via /chats/start.
     
-    Args:
-        message: User query message
-        molecule: Optional molecule name
-        
     Returns:
-        API response as dictionary
+        job_id if successful, None otherwise.
     """
     try:
         response = requests.post(
-            f"{API_URL}/chats",
+            f"{API_URL}/chats/start",
             json={
                 "message": message,
                 "molecule": molecule,
                 "session_id": st.session_state.session_id
             },
-            timeout=600  # 10 minute timeout for long-running queries
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data.get("job_id")
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error: Could not start backend job - {str(e)}")
+        return None
+
+
+def get_job_status(job_id: str) -> dict:
+    """
+    Poll the backend for job status via /chats/status/{job_id}.
+    """
+    try:
+        response = requests.get(
+            f"{API_URL}/chats/status/{job_id}",
+            timeout=30,
         )
         response.raise_for_status()
         return response.json()
-    except requests.exceptions.Timeout:
-        return {
-            "response": "Error: Request timed out. The analysis is taking longer than expected.",
-            "status": "timeout"
-        }
     except requests.exceptions.RequestException as e:
         return {
-            "response": f"Error: Could not connect to backend API - {str(e)}",
-            "status": "error"
+            "status": "error",
+            "error": f"Error while polling job status: {str(e)}",
         }
 
 
@@ -100,20 +108,69 @@ if prompt := st.chat_input("Ask about drug repurposing opportunities..."):
         # Progress indicator
         progress_bar = st.progress(0)
         status_text = st.empty()
+        log_container = st.empty()
         
-        # Show workflow steps
+        # Start background job
         status_text.text("🔄 Initializing workflow...")
-        progress_bar.progress(10)
-        
-        # Call API
-        api_response = call_api(prompt, molecule_name if molecule_name else None)
-        
-        # Update progress
-        progress_bar.progress(100)
-        status_text.text("✅ Analysis complete!")
-        time.sleep(0.5)  # Brief pause to show completion
-        progress_bar.empty()
-        status_text.empty()
+        progress_bar.progress(5)
+        job_id = start_job(prompt, molecule_name if molecule_name else None)
+
+        api_response = {}
+        if job_id:
+            # Poll for job status until completed or failed
+            while True:
+                status_data = get_job_status(job_id)
+                job_status = status_data.get("status", "unknown")
+                
+                if job_status in ["queued", "running"]:
+                    workflow_state = status_data.get("workflow_state") or {}
+                    messages = workflow_state.get("messages", [])
+                    agents_completed = workflow_state.get("agents_completed", [])
+                    agents_failed = workflow_state.get("agents_failed", [])
+                    current_step = workflow_state.get("current_step", "unknown")
+
+                    # Update progress and log
+                    status_text.text(f"🔄 Working... Current step: {current_step}")
+
+                    # Simple progress heuristic based on completed agents
+                    total_steps = 8  # plan + 6 agents + synth
+                    completed_steps = 1 + len(agents_completed)
+                    progress = int(min(95, max(10, (completed_steps / total_steps) * 100)))
+                    progress_bar.progress(progress)
+
+                    # Show live execution log
+                    with log_container.container():
+                        st.write("**Execution Trace:**")
+                        if messages:
+                            for msg in messages:
+                                st.write(f"- {msg}")
+                        else:
+                            st.write("- Workflow started...")
+
+                    time.sleep(1.0)
+                    continue
+
+                elif job_status == "completed":
+                    # Final result is included in status payload
+                    progress_bar.progress(100)
+                    status_text.text("✅ Analysis complete!")
+                    time.sleep(0.5)
+                    progress_bar.empty()
+                    status_text.empty()
+
+                    api_response = status_data.get("result", {}) or {}
+                    break
+
+                else:
+                    # Error or failed
+                    progress_bar.empty()
+                    error_msg = status_data.get("error", "Unknown error")
+                    status_text.text("❌ Error during analysis")
+                    api_response = {
+                        "response": error_msg,
+                        "status": "error"
+                    }
+                    break
         
         # Display response
         response_text = api_response.get("response", "No response received")
@@ -137,6 +194,13 @@ if prompt := st.chat_input("Ask about drug repurposing opportunities..."):
                         st.write("**Completed Agents:**")
                         for agent in workflow_state["agents_completed"]:
                             st.write(f"  ✓ {agent.replace('_', ' ').title()}")
+
+                    # Execution log from backend (per-agent progress)
+                    messages = workflow_state.get("messages", [])
+                    if messages:
+                        st.write("**Execution Log:**")
+                        for msg in messages:
+                            st.write(f"- {msg}")
             
             # Show key findings and recommendations
             data = api_response.get("data", {})
