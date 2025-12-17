@@ -1,6 +1,13 @@
 # Pharma Agentic AI - Drug Repurposing Intelligence Platform
 
 An AI-powered multi-agent system for discovering drug repurposing opportunities by analyzing market data, clinical trials, patents, and scientific literature.
+<img width="1916" height="903" alt="image" src="https://github.com/user-attachments/assets/d62a97ca-baa3-4b5f-b418-438ab0c37652" />
+shows you planning of agent
+<img width="1911" height="456" alt="image" src="https://github.com/user-attachments/assets/02f99441-b555-4f3f-b373-17a4707f5be5" />
+<img width="1911" height="900" alt="image" src="https://github.com/user-attachments/assets/730d603d-7b82-4958-99e1-8b6f837d7305" />
+
+
+
 
 **Version**: 0.1.0  
 **Status**: Production Ready  
